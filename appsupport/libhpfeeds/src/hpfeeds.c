@@ -324,7 +324,7 @@ int hpf_connect(hpf_handle_t** handle, char* host, char* service)
     if ((*handle)->sock_fd == -1) {
         free(*handle);
         fprintf(stderr, "Can't connect to hpfeed broker...giving up\n");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     (*handle)->status = S_CONNECTED;
@@ -423,8 +423,10 @@ int hpf_authenticate(hpf_handle_t* handle, char* ident, char* secret)
 }
 
 
-int hpf_message_write(hpf_handle_t* handle)
+int hpf_message_write(hpf_handle_t* handle, hpf_msg_t* msg)
 {
+    int res;
+    int attempt = 0;
     if (!handle) {
         fprintf(stderr, "Cannot do a wirte on a NULL handle\n");
         exit(EXIT_FAILURE);
@@ -436,6 +438,37 @@ int hpf_message_write(hpf_handle_t* handle)
     // We expect write failures to occur but we want to handle them where 
     // the error occurs rather than in a SIGPIPE handler.
     signal(SIGPIPE, SIG_IGN);
+    while(((res = write(handle->sock_fd, msg, msg->hdr.msglen)) != msg->hdr.msglen) 
+        && attempt < 5) {
+        if (res == -1 || res == 0) {
+            switch (errno) {
+                case EBADF:
+                case EINVAL:
+                case EPIPE:
+                    hpf_close(handle);
+                    if(!hpf_connect(&handle, handle->host, handle->service)) {
+                        fprintf(stderr, "Cannot reconnect. Giving up\n");
+                        hpf_free(handle);
+                        return -1;  
+                    }
+                    fprintf(stderr, "An error occurred while attempting to "
+                        "write, trying again\n");
+                    attempt++;
+                break;
+                default:
+                    fprintf(stderr, "Cannot write. Giving up. Error is %s\n",
+                        strerror(errno));
+                    hpf_free(handle);
+                    return -1;
+                break;        
+            }        
+        }
+    } 
+    if (attempt >= 5) {
+        fprintf(stderr, "Cannot wrote message...giving up. Error is %s\n", 
+            strerror(errno));
+        return -1;
+    }
     return 0;
 }
 
