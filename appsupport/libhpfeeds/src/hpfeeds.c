@@ -65,6 +65,7 @@ uint8_t* read_data(hpf_handle_t* handle)
     int hdrlen = sizeof(hpf_hdr_t);
 	int len = 0;
 	int dummylen = 0;
+    int offset = 0;
 
     if (!handle) {
         fprintf(stderr, "Cannot read data from a NULL handle\n");
@@ -76,12 +77,10 @@ uint8_t* read_data(hpf_handle_t* handle)
             handle->sock_fd);
         exit(EXIT_FAILURE);
     }
-    
    	if (read(handle->sock_fd, &hdr, hdrlen) != hdrlen) {
 		fprintf(stderr, "read(), not enough data to get msg header\n");
 		exit(EXIT_FAILURE);
 	}
-
     hdr.msglen = ntohl(hdr.msglen);
 
     buffer = (uint8_t*)malloc(hdr.msglen * sizeof(uint8_t));
@@ -93,10 +92,13 @@ uint8_t* read_data(hpf_handle_t* handle)
 
     /* copy header bytes..used to allocate memory buffer */
     memcpy(buffer, &hdr, hdrlen);
-    len += hdrlen;
+    offset += hdrlen;
+    len = 0;
     while (len < hdr.msglen) {
-        if ((dummylen = read(handle->sock_fd, &buffer[len], hdr.msglen) != -1))
+        if ((dummylen = read(handle->sock_fd, &buffer[offset], hdr.msglen) != -1)) {
+            offset += dummylen;
             len += dummylen;
+        }
         else {
             fprintf(stderr, "Error (%s) while reading from %d socket\n", 
                 strerror(errno), handle->sock_fd);
@@ -384,6 +386,7 @@ int hpf_authenticate(hpf_handle_t* handle, char* ident, char* secret)
         return 0;
     }
 
+    
     data = read_data(handle);
     /* get op code */
     hdr = (hpf_hdr_t*)data;
@@ -423,10 +426,12 @@ int hpf_authenticate(hpf_handle_t* handle, char* ident, char* secret)
 		    fprintf(stderr, "Received OP_ERROR message\n");
 			break;
 		default:
-			fprintf(stderr, "Unknown server message (type %u)\n", hdr->opcode);
-			exit(EXIT_FAILURE);
+			fprintf(stderr, "Wrong or unknown server message (type %u)" 
+                " cannot authenticate\n", hdr->opcode);
+            hpf_close(handle);
+			return EXIT_FAILURE;
 		}
-    return 1;
+    return EXIT_SUCCESS;
 }
 
 
