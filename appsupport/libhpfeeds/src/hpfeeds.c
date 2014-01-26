@@ -273,7 +273,7 @@ int hpf_connect(hpf_handle_t** handle, char* host, char* service)
     hints.ai_flags = AI_NUMERICSERV;
 
     
-    if((err = getaddrinfo(host, service, NULL, &res))) {
+    if((err = getaddrinfo(host, service, &hints, &res))) {
         gai_strerror(err);
         exit(EXIT_FAILURE);
     }
@@ -285,6 +285,19 @@ int hpf_connect(hpf_handle_t** handle, char* host, char* service)
             fprintf(stderr, "Can't allocate connection handle\n");
             exit(EXIT_FAILURE);
         }
+        // let's copy host and port....and struct we used to connect...
+        (*handle)->host = (char*) malloc(sizeof(strlen(host) * sizeof(char)));
+        if (!(*handle)->host) {
+            fprintf(stderr, "Can't allocate host string\n");
+            exit(EXIT_FAILURE);
+        }
+        strncpy((*handle)->host, host, strlen(host));
+        (*handle)->service = (char*) malloc(sizeof(strlen(service) * sizeof(char)));
+        if (!(*handle)->service) {
+            fprintf(stderr, "Can't allocate service string\n");
+            exit(EXIT_FAILURE);
+        }
+        strncpy((*handle)->service, service, strlen(service));
     }
 
     /* let's connect until success or getaddrinfo result finishes */
@@ -303,28 +316,16 @@ int hpf_connect(hpf_handle_t** handle, char* host, char* service)
             (*handle)->sock_fd = -1;
             continue;
         }
-        // let's copy host and port....and struct we used to connect...
-        (*handle)->host = (char*) malloc(sizeof(strlen(host) * sizeof(char)));
-        if (!(*handle)->host) {
-            fprintf(stderr, "Can't allocate host string\n");
-            exit(EXIT_FAILURE);
-        }
-        strncpy((*handle)->host, host, strlen(host));
-        (*handle)->service = (char*) malloc(sizeof(strlen(service) * sizeof(char)));
-        if (!(*handle)->service) {
-            fprintf(stderr, "Can't allocate service string\n");
-            exit(EXIT_FAILURE);
-        }
-        strncpy((*handle)->service, service, strlen(service));
         break;
     }
     
     freeaddrinfo(res);
     // Did we succeeded?
     if ((*handle)->sock_fd == -1) {
-        free(*handle);
-        fprintf(stderr, "Can't connect to hpfeed broker...giving up\n");
-        return EXIT_FAILURE;
+        fprintf(stderr, "Can't connect to hpfeed broker on %s:%s...giving up\n", 
+            (*handle)->host, (*handle)->service);
+        hpf_free(*handle);
+        exit(EXIT_FAILURE);
     }
 
     (*handle)->status = S_CONNECTED;
@@ -346,15 +347,21 @@ void hpf_close(hpf_handle_t* handle)
 void hpf_free(hpf_handle_t* handle)
 {
     if (!handle) {
-        fprintf(stderr, "Can't disconnect, handle is invalid...giving up\n");
+        fprintf(stderr, "Can't free memory, handle is NULL...giving up\n");
         exit(EXIT_FAILURE);
     }
 
     if(handle->status != S_TERMINATE)
         hpf_close(handle);
 
-    free(handle->host);
-    free(handle->service);
+    if (handle->host) {
+        free(handle->host);
+        handle->host = NULL;
+    }
+    if (handle->service) {
+        free(handle->service);
+        handle->service = NULL;
+    }
     free(handle);
     handle = NULL;
 }
