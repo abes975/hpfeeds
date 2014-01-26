@@ -20,6 +20,7 @@
 #define __hpfeeds_h
 
 #include <sys/types.h>
+#include <stdint.h>
 
 #define	OP_ERROR 0
 #define	OP_INFO	1
@@ -27,32 +28,83 @@
 #define	OP_PUBLISH 3
 #define	OP_SUBSCRIBE 4
 
+typedef enum {
+S_INIT,
+S_ERROR,
+S_CONNECTED,
+S_AUTH,
+S_SUBSCRIBE,
+S_PUBLISH,
+S_RECVMSGS,
+S_TERMINATE
+} session_state_t;
+
+
+#pragma pack(1)
 typedef struct {
-	struct {
-		u_int32_t msglen;
-		u_int8_t opcode;
-	}  __attribute__((__packed__)) hdr;
-	u_char data[];
+		uint32_t msglen;
+		uint8_t opcode;
+} hpf_hdr_t;
+
+typedef struct {
+    hpf_hdr_t hdr;	
+	uint8_t data[];
 } hpf_msg_t;
+
+#pragma pack()
 
 typedef struct {
 	u_char len;
 	u_char data[];
 } hpf_chunk_t;
 
+typedef struct {
+    int sock_fd;
+    char* host;
+    char* service;
+    //struct addrinfo addr;
+    int sent_bytes;
+    int received_bytes;
+    int status;
+} hpf_handle_t;
 
-void hpf_msg_delete(hpf_msg_t *m);
+//typedef struct hpf_chann {
+//    char* chan_name;
+//    int sent_bytes;
+//    int sent_msg;
+//    bool publish;
+//    int recv_bytes;
+//    int recv_msg;
+//    struct hpf_chann* next;
+//} hpf_chann_t;
 
-hpf_msg_t *hpf_msg_getmsg(u_char *data);
+
+
+hpf_msg_t *hpf_msg_getmsg(uint8_t *data);
 u_int32_t hpf_msg_getsize(hpf_msg_t *m);
 u_int32_t hpf_msg_gettype(hpf_msg_t *m);
 
-hpf_chunk_t *hpf_msg_get_chunk(u_char *data, size_t len);
+hpf_chunk_t *hpf_msg_get_chunk(uint8_t *data, size_t len);
 
-hpf_msg_t *hpf_msg_error(u_char *err, size_t err_size);
-hpf_msg_t *hpf_msg_info(u_int32_t nonce, u_char *fbname, size_t fbname_len);
-hpf_msg_t *hpf_msg_auth(u_int32_t nonce, u_char *ident, size_t ident_len, u_char *secret, size_t secret_len);
-hpf_msg_t *hpf_msg_publish(u_char *ident, size_t ident_len, u_char *channel, size_t channel_len, u_char *data, size_t data_len);
-hpf_msg_t *hpf_msg_subscribe(u_char *ident, size_t ident_len, u_char *channel, size_t channel_len);
+/* all this function used to create/ delete messages */
+hpf_msg_t *hpf_msg_create(void);
+hpf_msg_t *hpf_msg_error_create(uint8_t *err, size_t err_size);
+hpf_msg_t *hpf_msg_info_create(uint32_t nonce, uint8_t *fbname, size_t fbname_len);
+hpf_msg_t *hpf_msg_auth_create(uint32_t nonce, uint8_t *ident, size_t ident_len, uint8_t *secret, size_t secret_len);
+hpf_msg_t *hpf_msg_publish_create(uint8_t *ident, size_t ident_len, uint8_t *channel, size_t channel_len, uint8_t *data, size_t data_len);
+hpf_msg_t *hpf_msg_subscribe_create(uint8_t *ident, size_t ident_len, uint8_t *channel, size_t channel_len);
+void hpf_msg_delete(hpf_msg_t *m);
+
+
+/* high level funtion used by clients... */
+
+int hpf_connect(hpf_handle_t** handle, char* host, char* service);
+int hpf_authenticate(hpf_handle_t* handle, char* ident, char* secret);
+int hpf_msg_write(hpf_handle_t* handle, hpf_msg_t* msg);
+uint8_t hpf_msg_read(hpf_handle_t* handle);
+void hpf_close(hpf_handle_t* handle);
+void hpf_free(hpf_handle_t* handle);
+
+
 
 #endif
