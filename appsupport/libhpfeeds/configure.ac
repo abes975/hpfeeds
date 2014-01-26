@@ -4,14 +4,17 @@
 # $Id$
 
 AC_PREREQ(2.59)
-AC_INIT([libhpfeeds], [0.1.0], [tillmann.werner@gmx.de])
-AM_INIT_AUTOMAKE([libhpfeeds], [0.1.0])
+AC_INIT([libhpfeeds], [0.1.1], [tillmann.werner@gmx.de])
+AC_CONFIG_SRCDIR([src/hpfeeds.c])
+AM_INIT_AUTOMAKE
 AC_REVISION([$Id$])
 
 AC_PREFIX_DEFAULT(/)
 AC_CONFIG_SRCDIR([include/hpfeeds.h])
 AM_CONFIG_HEADER([config.h])
+AC_CONFIG_MACRO_DIR([m4])
 # AM_MAINTAINER_MODE
+
 
 AC_CANONICAL_HOST
 AC_C_CONST
